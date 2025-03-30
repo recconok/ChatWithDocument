@@ -1,3 +1,5 @@
+CHAT WITH DOCUMENT
+
 Run python app1.py
 
 Create .env file and stored the gemini api in it 
