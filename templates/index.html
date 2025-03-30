@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Legal Doc chat</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        /* General Styles */
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(to right, #f0f4f8, #cfd9df);
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            color: #333;
+        }
+
+        #main-container {
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            width: 95%;
+            max-width: 1200px;
+            display: flex;
+            overflow: hidden;
+            margin: 20px;
+            flex: 1;
+        }
+
+        #pdf-viewer {
+            flex: 1;
+            padding: 20px;
+            border-right: 1px solid #ddd;
+            overflow: auto;
+        }
+
+        #pdf-preview {
+            width: 100%;
+            height: 600px;
+            border: none;
+        }
+
+        #chat-section {
+            flex: 1;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        h1 {
+            text-align: center;
+            color: #007bff;
+            font-size: 28px;
+            margin-bottom: 20px;
+        }
+
+        #chat-history {
+            border: 1px solid #007bff;
+            border-radius: 5px;
+            padding: 10px;
+            overflow-y: auto;
+            margin-bottom: 20px;
+            background-color: #f9f9f9;
+            height: 400px;
+            flex: 1;
+        }
+
+        .message {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 5px;
+            max-width: 80%;
+        }
+
+        .user {
+            background-color: #d1e7dd;
+            align-self: flex-end;
+        }
+
+        .assistant {
+            background-color: #f8d7da;
+            align-self: flex-start;
+        }
+
+        #input-area {
+            display: flex;
+            align-items: center;
+        }
+
+        input[type="text"] {
+            flex: 1;
+            padding: 12px;
+            border-radius: 5px;
+            border: 1px solid #007bff;
+            margin-right: 10px;
+        }
+
+        button {
+            padding: 12px 20px;
+            border-radius: 5px;
+            border: none;
+            background-color: #007bff;
+            color: white;
+            font-size: 16px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        #upload-area {
+            margin-bottom: 20px;
+        }
+
+        input[type="file"] {
+            width: calc(100% - 20px);
+            padding: 12px;
+            border-radius: 5px;
+            border: 1px solid #007bff;
+        }
+
+        footer {
+            text-align: center;
+            margin-top: 20px;
+            font-size: 14px;
+            color: #555;
+            font-style: italic;
+            position: fixed;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 100%;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            #main-container {
+                flex-direction: column;
+            }
+
+            #pdf-viewer,
+            #chat-section {
+                width: 100%;
+                border-right: none;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="main-container">
+        <div id="pdf-viewer">
+            <h1>Legal Document</h1>
+            <input type="file" id="pdf-upload" accept=".pdf" />
+
+            <iframe id="pdf-preview" src="" frameborder="0"></iframe>
+        </div>
+
+        <div id="chat-section">
+            <h1>Chat with LegalDocs</h1>
+
+            <div id="chat-history"></div>
+
+            <div id="input-area">
+                <input type="text" id="message-input" placeholder="Ask about the document..."
+                    onkeydown="handleEnter(event)" />
+                <button onclick="sendMessage()">Send</button>
+            </div>
+        </div>
+    </div>
+
+
+
+    <script>
+        let currentSession = null;
+
+        document.getElementById('pdf-upload').addEventListener('change', async (e) => {
+            const formData = new FormData();
+            formData.append('pdf', e.target.files[0]);
+
+            const response = await fetch('/upload', {
+                method: 'POST',
+                body: formData
+            });
+
+            const data = await response.json();
+
+            if (data.session_id) {
+                currentSession = data.session_id;
+                loadHistory();
+                alert("PDF uploaded successfully!");
+                document.getElementById('message-input').focus();
+                displayPDF(e.target.files[0]);
+            } else {
+                alert("Error uploading PDF.");
+                console.error(data.error);
+                currentSession = null;
+            }
+        });
+
+        function displayPDF(file) {
+            const reader = new FileReader();
+
+            reader.onload = function (e) {
+                const pdfPreview = document.getElementById('pdf-preview');
+                pdfPreview.src = e.target.result;
+            }
+            reader.readAsDataURL(file);
+        }
+
+        async function loadHistory() {
+            if (!currentSession) return;
+
+            const chatHistory = document.getElementById('chat-history');
+            chatHistory.innerHTML = '';
+
+            try {
+                const response = await fetch('/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        session_id: currentSession,
+                        message: "Summary"
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status}`);
+                }
+
+                const data = await response.json();
+                if (data && data.history) {
+                    data.history.forEach(msg => {
+                        addMessageToHistory(msg.content, msg.role);
+                    });
+                } else {
+                    console.error("Invalid history data:", data);
+                    alert("Failed to load history. Please try again.");
+                }
+            } catch (error) {
+                console.error("Error loading history:", error);
+                alert("Failed to load history. Please try again.");
+            } finally {
+                chatHistory.scrollTop = chatHistory.scrollHeight;
+            }
+        }
+
+        async function sendMessage() {
+            const input = document.getElementById('message-input');
+            const message = input.value.trim();
+            if (!message || !currentSession) return;
+
+            addMessageToHistory(message, 'user');
+            input.value = '';
+
+            try {
+                const response = await fetch('/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        session_id: currentSession,
+                        message
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status}`);
+                }
+
+                const data = await response.json();
+                addMessageToHistory(data.response, 'assistant');
+            } catch (error) {
+                console.error("Error sending message:", error);
+                alert("Failed to send message. Please try again.");
+            } finally {
+                const chatHistory = document.getElementById('chat-history');
+                chatHistory.scrollTop = chatHistory.scrollHeight;
+            }
+        }
+
+        function addMessageToHistory(text, role) {
+            const historyDiv = document.getElementById('chat-history');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${role}`;
+            messageDiv.textContent = text;
+
+            historyDiv.appendChild(messageDiv);
+        }
+
+        function handleEnter(event) {
+            if (event.key === "Enter") {
+                event.preventDefault();  // Prevent form submission
+                sendMessage();
+            }
+        }
+    </script>
+
+</body>
+
+</html>
